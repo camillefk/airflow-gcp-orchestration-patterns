@@ -1,45 +1,33 @@
-Overview
-========
+# Serverless Data Pipeline: GCS to BigQuery with Apache Airflow
 
-Welcome to Astronomer! This project was generated after you ran 'astro dev init' using the Astronomer CLI. This readme describes the contents of the project, as well as how to run Apache Airflow on your local machine.
+## Project Objective
+This project implements a professional, production-ready data ingestion pipeline that monitors a Google Cloud Storage (GCS) bucket for daily JSON files and loads them into Google BigQuery. 
 
-Project Contents
-================
+The focus of this LAB was on **infrastructure cost optimization**, **data idempotency**, and **enterprise-grade security**.
 
-Your Astro project contains the following files and folders:
+## Architecture
+1. **Orchestration:** Apache Airflow (running on Docker via Astro CLI).
+2. **Data Source:** Google Cloud Storage (GCS) - Landing Zone.
+3. **Data Warehouse:** Google BigQuery.
+4. **Security:** Workload Identity Federation (simulated via ADC) to avoid hardcoded JSON keys.
 
-- dags: This folder contains the Python files for your Airflow DAGs. By default, this directory includes one example DAG:
-    - `example_astronauts`: This DAG shows a simple ETL pipeline example that queries the list of astronauts currently in space from the Open Notify API and prints a statement for each astronaut. The DAG uses the TaskFlow API to define tasks in Python, and dynamic task mapping to dynamically print a statement for each astronaut. For more on how this DAG works, see our [Getting started tutorial](https://www.astronomer.io/docs/learn/get-started-with-airflow).
-- Dockerfile: This file contains a versioned Astro Runtime Docker image that provides a differentiated Airflow experience. If you want to execute other commands or overrides at runtime, specify them here.
-- include: This folder contains any additional files that you want to include as part of your project. It is empty by default.
-- packages.txt: Install OS-level packages needed for your project by adding them to this file. It is empty by default.
-- requirements.txt: Install Python packages needed for your project by adding them to this file. It is empty by default.
-- plugins: Add custom or community plugins for your project to this file. It is empty by default.
-- airflow_settings.yaml: Use this local-only file to specify Airflow Connections, Variables, and Pools instead of entering them in the Airflow UI as you develop DAGs in this project.
+## Key Technical Features
+### 1. Cost Optimization (Poke vs. Reschedule)
+Instead of the default `poke` mode, I implemented the **`reschedule`** mode in the GCS Sensor.
+- **Why?** In cloud environments, a sensor in `poke` mode keeps a worker slot occupied (and billing) while waiting for a file. `reschedule` releases the worker and only checks back at defined intervals, saving significant infrastructure costs.
 
-Deploy Your Project Locally
-===========================
+### 2. Idempotency & Backfill
+The pipeline is designed to be **idempotent**. 
+- Using `WRITE_TRUNCATE` disposition, we ensure that re-running the same day (Backfill) will not result in duplicated data. The logic clears the destination for that specific execution before re-inserting.
 
-Start Airflow on your local machine by running 'astro dev start'.
+### 3. Enterprise Security
+Aligned with Google Cloud's best practices, this project uses **Application Default Credentials (ADC)** instead of static Service Account JSON keys, preventing credential leakage in repositories.
 
-This command will spin up five Docker containers on your machine, each for a different Airflow component:
-
-- Postgres: Airflow's Metadata Database
-- Scheduler: The Airflow component responsible for monitoring and triggering tasks
-- DAG Processor: The Airflow component responsible for parsing DAGs
-- API Server: The Airflow component responsible for serving the Airflow UI and API
-- Triggerer: The Airflow component responsible for triggering deferred tasks
-
-When all five containers are ready the command will open the browser to the Airflow UI at http://localhost:8080/. You should also be able to access your Postgres Database at 'localhost:5432/postgres' with username 'postgres' and password 'postgres'.
-
-Note: If you already have either of the above ports allocated, you can either [stop your existing Docker containers or change the port](https://www.astronomer.io/docs/astro/cli/troubleshoot-locally#ports-are-not-available-for-my-local-airflow-webserver).
-
-Deploy Your Project to Astronomer
-=================================
-
-If you have an Astronomer account, pushing code to a Deployment on Astronomer is simple. For deploying instructions, refer to Astronomer documentation: https://www.astronomer.io/docs/astro/deploy-code/
-
-Contact
-=======
-
-The Astronomer CLI is maintained with love by the Astronomer team. To report a bug or suggest a change, reach out to our support.
+## How to Run
+1. Install [Astro CLI](https://www.astronomer.io/opensource/).
+2. Authenticate with GCP: `gcloud auth application-default login`.
+3. Configure your `.env` file with your Bucket and Project IDs.
+4. Run `astro dev start`.
+5. Trigger a backfill via terminal:
+   ```bash
+   airflow backfill create --dag-id lab_gcs_to_bigquery_v1 --from-date YYYY-MM-DD --to-date YYYY-MM-DD
