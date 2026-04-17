@@ -32,7 +32,7 @@ Aligned with Google Cloud's best practices, this project uses **Application Defa
    ```bash
    airflow backfill create --dag-id lab_gcs_to_bigquery_v1 --from-date YYYY-MM-DD --to-date YYYY-MM-DD
 
-   This file defines an **Apache Airflow DAG** that orchestrates a data pipeline from Google Cloud Storage (GCS) to BigQuery.
+
 
 ## 🧩 Code Explanation (DAG Deep Dive)
 
