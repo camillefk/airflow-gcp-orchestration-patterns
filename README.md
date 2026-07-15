@@ -14,7 +14,7 @@ This repository showcases a production-ready data ingestion pipeline that:
 **Stack:**
 - **Orchestration:** Apache Airflow 2.x (Astro Runtime 3.1)
 - **Cloud Platform:** Google Cloud Platform (GCS, BigQuery, IAM)
-- **Runtime:** Docker (Astrocrpublic base image)
+- **Runtime:** Astro Runtime 3.1 (Docker)
 - **Authentication:** Application Default Credentials (ADC)
 - **Key Provider:** apache-airflow-providers-google v10.12.0
 
@@ -30,7 +30,7 @@ This repository showcases a production-ready data ingestion pipeline that:
 
 ### 1. **Cost Optimization: Reschedule vs. Poke**
 
-Traditional sensor mode (`poke`) keeps a worker slot occupied while waiting-resulting in unnecessary billing. This project uses **`reschedule` mode**, which:
+Traditional sensor mode (`poke`) keeps a worker slot occupied while waiting, resulting in unnecessary billing. This project uses **`reschedule` mode**, which:
 
 - Releases the worker slot while waiting for the file
 - Checks for file existence every 5 minutes (configurable)
@@ -38,7 +38,7 @@ Traditional sensor mode (`poke`) keeps a worker slot occupied while waiting-resu
 
 ```python
 #From dags/gcs_to_bq_pipeline.py
-wait_for_json =GCSObjectExistenceSensor(
+wait_for_json = GCSObjectExistenceSensor(
   mode="reschedule",            # Key optimization
   poke_interval=300,            # Check every 5 minutes
   timeout=60 * 60 * 2,          # Max 2 hours
@@ -88,7 +88,7 @@ gcloud auth application-default login
 **Prerequisites:**
 - Docker & Docker Compose
 - Astro CLI
-- GCP account with GCS & BigQuery enable
+- GCP account with GCS & BigQuery enabled
 - `gcloud` CLI installed
 
 **Installation:**
@@ -130,7 +130,7 @@ airflow backfill \
 ```
 
 **Configuration:**
-All settings are managed via Airflow Variables(environments variables):
+All settings are managed via Airflow Variables (environment variables):
 ```bash
 AIRFLOW_VAR_GCP_BUCKET_NAME    # GCS bucket name (required)
 AIRFLOW_VAR_GCP_PROJECT_ID     # GCP project ID (required)
@@ -143,7 +143,7 @@ AIRFLOW_VAR_BQ_TABLE_ID        # BigQuery table (required)
 ## DAG Details
 
 `lab_gcs_to_bigquery_v1`
-**Schedule:** Every weekday at 6:00 AM(0 6 * * 1-5)
+**Schedule:** Every weekday at 6:00 AM (0 6 * * 1-5)
 
 **Tasks:**
 Task 1: `wait_for_json_file` (GCSObjectExistenceSensor)
@@ -195,7 +195,7 @@ airflow logs -d lab_gcs_to_bigquery_v1 -t wait_for_json_file 2024-01-15
 | Issue | Solution |
 | ----- | ----- |
 | "gcp_conn_id not found" |	Set up Google Cloud connection in Airflow UI |
-|Sensor timeout |	Increase `timeout` parameter or check file path |
+| Sensor timeout |	Increase `timeout` parameter or check file path |
 | BigQuery permission denied |	Ensure service account has `bigquery.dataEditor` role |
 | Schema mismatch |	Enable `autodetect=True` or manually set schema |
 
