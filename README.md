@@ -142,10 +142,10 @@ AIRFLOW_VAR_BQ_TABLE_ID        # BigQuery table (required)
 
 ## DAG Details
 
-`lab_gcs_to_bigquery_v1`
+`lab_gcs_to_bigquery_v1`  
 **Schedule:** Every weekday at 6:00 AM (0 6 * * 1-5)
 
-**Tasks:**
+**Tasks:**  
 Task 1: `wait_for_json_file` (GCSObjectExistenceSensor)
 - Waits for: `raw/vendas_{{ ds }}.json` (e.g., `raw/vendas_2024-01-15.json`)
 - Mode: `reschedule` (cost-optimized)
