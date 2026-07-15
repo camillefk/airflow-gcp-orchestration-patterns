@@ -211,6 +211,6 @@ See `DEPLOYMENT.md` for production-grade setup on:
 
 ---
 
-**Built by:** @camillefk
-**Created:** April 2026
+**Built by:** @camillefk  
+**Created:** April 2026  
 **Last Updated:** July 15, 2026
