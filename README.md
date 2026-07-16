@@ -2,212 +2,388 @@
 
 > Production-grade Apache Airflow pipeline demonstrating **event-driven data ingestion**, **enterprise security**, and **cost optimization** on Google Cloud Platform.
 
+## Pipeline Flow
+
+```text
+Google Cloud Storage
+        │
+        ▼
+GCSObjectExistenceSensor
+(reschedule mode)
+        │
+        ▼
+GCSToBigQueryOperator
+        │
+        ▼
+Google BigQuery
+```
+
 ## Project Overview
 
 This repository showcases a production-ready data ingestion pipeline that:
-- ✓ Monitors Google Cloud Storage (GCS) for daily JSON files
+
+- ✓ Monitors Google Cloud Storage (GCS) for a daily JSON file matching the DAG execution date
 - ✓ Automatically loads data into BigQuery with **zero manual intervention**
-- ✓ Implements **idempotent operations** for safe backfills and returns
+- ✓ Implements **idempotent operations** for safe reruns and historical backfills
 - ✓ Optimizes infrastructure costs using smart sensor patterns
-- ✓ Follows Google Cloud security best practices (Workload Identity)
+- ✓ Follows Google Cloud security best practices (Application Default Credentials and Workload Identity)
 
 **Stack:**
+
 - **Orchestration:** Apache Airflow 2.x (Astro Runtime 3.1)
-- **Cloud Platform:** Google Cloud Platform (GCS, BigQuery, IAM)
+- **Cloud Platform:** Google Cloud Platform (Cloud Storage, BigQuery, IAM)
 - **Runtime:** Astro Runtime 3.1 (Docker)
 - **Authentication:** Application Default Credentials (ADC)
-- **Key Provider:** apache-airflow-providers-google v10.12.0
+- **Google Provider:** apache-airflow-providers-google v10.12.0
 
-**Use this as a reference implementation** for:
+**Use this as a reference implementation for:**
+
 - Apache Airflow on Google Cloud
+- Event-driven data ingestion
 - Data pipeline cost optimization
 - Enterprise-grade security patterns
 - Idempotent data processing
 
 ---
 
+## Documentation
+
+| File | Description |
+|------|-------------|
+| `README.md` | Project overview |
+| `docs/ARCHITECTURE.md` | Architecture and design decisions |
+| `docs/SETUP.md` | Local development and configuration guide |
+
+---
+
 ## Key Features & Patterns
 
-### 1. **Cost Optimization: Reschedule vs. Poke**
+### 1. Cost Optimization: Reschedule vs. Poke
 
-Traditional sensor mode (`poke`) keeps a worker slot occupied while waiting, resulting in unnecessary billing. This project uses **`reschedule` mode**, which:
+Traditional sensor mode (`poke`) keeps a worker slot occupied while waiting, resulting in unnecessary billing.
+
+This project uses **`reschedule` mode**, which:
 
 - Releases the worker slot while waiting for the file
-- Checks for file existence every 5 minutes (configurable)
-- **Result:** ~80% reduction in sensor-related costs
+- Checks for file existence every 5 minutes
+- Frees the worker between checks
+- Reduces infrastructure costs for long-running sensors
 
 ```python
 #From dags/gcs_to_bq_pipeline.py
 wait_for_json = GCSObjectExistenceSensor(
-  mode="reschedule",            # Key optimization
-  poke_interval=300,            # Check every 5 minutes
-  timeout=60 * 60 * 2,          # Max 2 hours
-) 
-```
-
-**When to use:**
-- Long-running sensors (>5 minutes)
-- Dev/staging/prod environments where cost matters
-- Non-time-critical workflows
-
-### 2. **Idempotency & Safe Backfills**
-
-The pipeline uses `WRITE_TRUNCATE` to ensure data integrity:
-
-| Scenario | Behavior |
-| ----- | ----- |
-| First run | Creates table, loads data |
-| Rerun same day | Truncates existing data, reloads (no duplicates) |
-| Historical backfill | Can safely reprocess 90 days without data corruption |
-
-```python
-#From dags/gcs_to_bq_pipeline.py
-load_to_bq = GCSToBigQueryOperator(
-  write_disposition="WRITE_TRUNCATE",     # Idempotency key
-  autodetect=True,                        # Auto schema detection
+    mode="reschedule",
+    poke_interval=300,
+    timeout=60 * 60 * 2,
 )
 ```
 
-### 3. **Enterprise Security: No Hardcoded Credentials**
+**Recommended when:**
 
-Follows Google Cloud's security best practices:
-- ✓ Uses Application Default Credentials (ADC) instead of service account JSON keys
-- ✓ Prevents credential leakage in version control
-- ✓ Works seamlessly with Google Cloud's identity ecosystem
+- Waiting for external files
+- Long-running sensors
+- Production environments
+- Cost optimization matters
+
+---
+
+### 2. Idempotency & Safe Backfills
+
+The pipeline uses `WRITE_TRUNCATE` to guarantee safe reruns.
+
+| Scenario | Result |
+|----------|--------|
+| First execution | Creates table and loads data |
+| Rerun | Replaces existing data (no duplicates) |
+| Historical backfill | Safe to rerun multiple dates |
+
+```python
+load_to_bq = GCSToBigQueryOperator(
+    write_disposition="WRITE_TRUNCATE",
+    autodetect=True,
+)
+```
+
+---
+
+### 3. Enterprise Security
+
+The project follows Google Cloud authentication best practices.
+
+- ✓ Uses Application Default Credentials (ADC)
+- ✓ No service account JSON keys committed to Git
+- ✓ Compatible with Workload Identity
+- ✓ Works locally and in production
 
 ```bash
-# Authenticate once locally
+gcloud auth login
 gcloud auth application-default login
-
-# Airflow automatically picks up credentials
 ```
+
 ---
 
 ## Quick Start
 
-**Prerequisites:**
-- Docker & Docker Compose
+### Prerequisites
+
+- Docker Desktop
 - Astro CLI
-- GCP account with GCS & BigQuery enabled
-- `gcloud` CLI installed
+- Google Cloud SDK
+- Google Cloud Project
+- Cloud Storage Bucket
+- BigQuery Dataset
 
-**Installation:**
+---
+
+### Installation
+
 ```bash
-# 1. Clone repository
 git clone https://github.com/camillefk/airflow-gcp-orchestration-patterns.git
+
 cd airflow-gcp-orchestration-patterns
+```
 
-# 2. Authenticate with GCP
+Authenticate with Google Cloud:
+
+```bash
+gcloud auth login
+
 gcloud auth application-default login
+```
 
-# 3. Create .env file with your GCP details
-cat > .env << EOF
-AIRFLOW_VAR_GCP_BUCKET_NAME=your-gcs-bucket
-AIRFLOW_VAR_GCP_PROJECT_ID=your-gcp-project
+Create your `.env` file:
+
+```bash
+AIRFLOW_VAR_GCP_BUCKET_NAME=your-bucket
+AIRFLOW_VAR_GCP_PROJECT_ID=your-project
 AIRFLOW_VAR_BQ_DATASET_ID=your_dataset
 AIRFLOW_VAR_BQ_TABLE_ID=your_table
-EOF
+```
 
-# 4. Start Airflow
+Start Airflow:
+
+```bash
 astro dev start
-
-# 5. Open Airflow UI
-# → http://localhost:8080
-# Username: admin
-# Password: admin
 ```
 
-**Trigger a Manual Run:**
-```bash
-# Run DAG for a specific date
-airflow dags trigger lab_gcs_to_bigquery_v1 --exec-date 2024-01-15
+Open:
 
-# Or trigger a backfill for multiple days
+```
+http://localhost:8080
+```
+
+Default credentials:
+
+```
+Username: admin
+Password: admin
+```
+
+> **Note**
+>
+> See `SETUP.md` for the complete local development setup, including ADC configuration and uploading test files to Cloud Storage.
+
+---
+
+## Expected Input File
+
+The DAG waits for a JSON file inside Cloud Storage following this naming convention:
+
+```text
+raw/vendas_YYYY-MM-DD.json
+```
+
+Example:
+
+```text
+raw/vendas_2024-01-15.json
+```
+
+The filename **must match the DAG execution date**, since the sensor monitors:
+
+```python
+raw/vendas_{{ ds }}.json
+```
+
+---
+
+## Running the Pipeline
+
+Upload a JSON file:
+
+```bash
+gcloud storage cp vendas_2024-01-15.json \
+gs://your-bucket/raw/vendas_2024-01-15.json
+```
+
+Trigger the DAG:
+
+```bash
+airflow dags trigger lab_gcs_to_bigquery_v1 \
+--exec-date 2024-01-15
+```
+
+Or execute a historical backfill:
+
+```bash
 airflow backfill \
-  --dag-id lab_gcs_to_bigquery_v1 \
-  --from-date 2024-01-01 \
-  --to-date 2024-01-31
+--dag-id lab_gcs_to_bigquery_v1 \
+--from-date 2024-01-01 \
+--to-date 2024-01-31
 ```
 
-**Configuration:**
-All settings are managed via Airflow Variables (environment variables):
-```bash
-AIRFLOW_VAR_GCP_BUCKET_NAME    # GCS bucket name (required)
-AIRFLOW_VAR_GCP_PROJECT_ID     # GCP project ID (required)
-AIRFLOW_VAR_BQ_DATASET_ID      # BigQuery dataset (required)
-AIRFLOW_VAR_BQ_TABLE_ID        # BigQuery table (required)
+---
+
+## Configuration
+
+The project uses Airflow Variables.
+
+```text
+AIRFLOW_VAR_GCP_BUCKET_NAME
+AIRFLOW_VAR_GCP_PROJECT_ID
+AIRFLOW_VAR_BQ_DATASET_ID
+AIRFLOW_VAR_BQ_TABLE_ID
 ```
 
 ---
 
 ## DAG Details
 
-`lab_gcs_to_bigquery_v1`  
-**Schedule:** Every weekday at 6:00 AM (0 6 * * 1-5)
+**DAG**
 
-**Tasks:**  
-Task 1: `wait_for_json_file` (GCSObjectExistenceSensor)
-- Waits for: `raw/vendas_{{ ds }}.json` (e.g., `raw/vendas_2024-01-15.json`)
-- Mode: `reschedule` (cost-optimized)
+```
+lab_gcs_to_bigquery_v1
+```
+
+**Schedule**
+
+```
+Every weekday at 06:00
+
+Cron:
+0 6 * * 1-5
+```
+
+### Task 1 — wait_for_json_file
+
+**Operator**
+
+```
+GCSObjectExistenceSensor
+```
+
+Monitors:
+
+```
+raw/vendas_{{ ds }}.json
+```
+
+Example:
+
+```
+raw/vendas_2024-01-15.json
+```
+
+Configuration:
+
+- Mode: `reschedule`
 - Polling interval: 5 minutes
 - Timeout: 2 hours
 
-Task 2: `gcs_to_bigquery` (GCSToBigQueryOperator)
-- Loads JSON from GCS → BigQuery
-- Format: Newline-delimited JSON
-- Schema: Auto-detected
-- Write mode: `WRITE_TRUNCATE` (idempotent)
+---
 
-**Dependency:** `wait_for_json >> gcs_to_bigquery`
+### Task 2 — gcs_to_bigquery
+
+**Operator**
+
+```
+GCSToBigQueryOperator
+```
+
+- Reads JSON from Cloud Storage
+- Auto-detects schema
+- Loads into BigQuery
+- Uses `WRITE_TRUNCATE`
+
+---
+
+### Dependency
+
+```text
+wait_for_json
+        │
+        ▼
+gcs_to_bigquery
+```
 
 ---
 
 ## Testing
 
-**Run DAG Validation**
-```bash
-# Check DAG syntax
-astro dev bash airflow dags list
+Validate DAGs:
 
-# Validate specific DAG
+```bash
+astro dev bash airflow dags list
+```
+
+Show DAG:
+
+```bash
 astro dev bash airflow dags show lab_gcs_to_bigquery_v1
 ```
 
-**Dry Run (Without Execution)**
+Test only the sensor:
+
 ```bash
-# Test operator without running
-astro dev bash airflow tasks test lab_gcs_to_bigquery_v1 wait_for_json_file 2024-01-15
+astro dev bash airflow tasks test \
+lab_gcs_to_bigquery_v1 \
+wait_for_json_file \
+2024-01-15
 ```
 
 ---
 
-## Monitoring & Troubleshooting
+## Monitoring
 
-**Check Logs**
+View logs:
+
 ```bash
-# From Airflow UI: Admin → Logs
-# Or via CLI:
-airflow logs -d lab_gcs_to_bigquery_v1 -t wait_for_json_file 2024-01-15
+airflow logs \
+-d lab_gcs_to_bigquery_v1 \
+-t wait_for_json_file \
+2024-01-15
 ```
-
-**Common issues**
-
-| Issue | Solution |
-| ----- | ----- |
-| "gcp_conn_id not found" |	Set up Google Cloud connection in Airflow UI |
-| Sensor timeout |	Increase `timeout` parameter or check file path |
-| BigQuery permission denied |	Ensure service account has `bigquery.dataEditor` role |
-| Schema mismatch |	Enable `autodetect=True` or manually set schema |
 
 ---
 
-## Production Deployment
+## Troubleshooting
 
-See `DEPLOYMENT.md` for production-grade setup on:
+| Problem | Solution |
+|----------|----------|
+| Google connection not found | Configure `google_cloud_default` |
+| Sensor timeout | Check file path or increase timeout |
+| Permission denied | Verify IAM permissions |
+| Schema mismatch | Enable `autodetect=True` |
 
-- Google Cloud Run for Airflow
-- Cloud Composer (managed Airflow)
-- Kubernetes on GKE
+---
+
+## Project Structure
+
+```text
+.
+├── dags/
+│   └── gcs_to_bq_pipeline.py
+├── docs/
+│   └── ARCHITECTURE.md
+│   └── SETUP.md
+├── include/
+├── tests/
+├── requirements.txt
+├── Dockerfile
+├── .env.example
+├── README.md
+
+```
 
 ---
 
