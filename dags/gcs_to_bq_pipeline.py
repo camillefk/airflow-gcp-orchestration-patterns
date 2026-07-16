@@ -1,10 +1,11 @@
 from airflow import DAG
 from airflow.providers.google.cloud.sensors.gcs import GCSObjectExistenceSensor
-from airflow.providers.google.cloud.transfers.gcs_to_bigquery import GCSToBigQueryOperator
+from airflow.providers.google.cloud.transfers.gcs_to_bigquery import (
+    GCSToBigQueryOperator,
+)
 from airflow.models import Variable
 from datetime import datetime, timedelta
 
-# Busca dinâmica, o airflow remove o prefixo 'AIRFLOW_VAR_' e busca diretamente o nome da variavel
 BUCKET_NAME = Variable.get("GCP_BUCKET_NAME")
 PROJECT_ID = Variable.get("GCP_PROJECT_ID")
 DATASET_ID = Variable.get("BQ_DATASET_ID")
@@ -38,7 +39,7 @@ with DAG(
         timeout=60 * 60 * 2,
     )
 
-     load_to_bq = GCSToBigQueryOperator(
+    load_to_bq = GCSToBigQueryOperator(
         task_id="gcs_to_bigquery",
         bucket=BUCKET_NAME,
         source_objects=["raw/vendas_{{ ds }}.json"],
