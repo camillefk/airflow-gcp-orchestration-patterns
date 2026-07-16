@@ -171,9 +171,9 @@ File Check:   [✓][   released   ][✗][   released   ][✓]
 ```
 
 ### Why ADC?
-✓ **No hardcoded credentials** in code or configs
-✓ **Automatic credential refresh** (No credential expiration issues)
-✓ **Workload Identity support** (GKE/Cloud Run native)
+✓ **No hardcoded credentials** in code or configs  
+✓ **Automatic credential refresh** (No credential expiration issues)  
+✓ **Workload Identity support** (GKE/Cloud Run native)  
 ✓ **Environment-agnostic** (dev, staging, prod)
 
 ### IAM Roles Required
